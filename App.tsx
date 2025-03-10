@@ -1,118 +1,96 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
+import React, {useState, useEffect} from 'react';
+import {NavigationContainer} from '@react-navigation/native';
+import {createNativeStackNavigator} from '@react-navigation/native-stack';
+import auth from '@react-native-firebase/auth'; // Import Firebase auth
+import MainPage from './src/MainPage';
+import CameraScreen from './src/CameraScreen';
+import LoginPage from './src/LoginPage';
+import {Alert} from 'react-native';
+import unAuthorized from './src/unAuthorized';
+import TabScreens from './src/TabScreens';
+import CameraPreview from './src/CameraPreview';
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
-import {
-  SafeAreaView,
-  ScrollView,
-  StatusBar,
-  StyleSheet,
-  Text,
-  useColorScheme,
-  View,
-} from 'react-native';
+const Stack = createNativeStackNavigator();
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
+const App = () => {
+  const [user, setUser] = useState(null); // Track authenticated user
+  const [isDealerAdmin, setIsDealerAdmin] = useState(false); // Track dealer admin status
+  const [loading, setLoading] = useState(true); // Loading state
 
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
+  useEffect(() => {
+    // Listen for authentication state changes
+    const unsubscribe = auth().onAuthStateChanged(async currentUser => {
+      try {
+        setLoading(true);
 
-function Section({children, title}: SectionProps): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
+        if (currentUser) {
+          // Get the user's ID token and claims
+          const tokenResult = await currentUser.getIdTokenResult();
+          console.log('Token Results:', tokenResult);
+
+          // Check if the dealeradmin claim is true
+          if (tokenResult.claims.dealeradmin) {
+            setIsDealerAdmin(true);
+            setUser({
+              email: currentUser.email,
+              uid: currentUser.uid,
+            });
+          } else {
+            throw new Error('Unauthorized'); // User is not a dealer admin
+          }
+        } else {
+          setIsDealerAdmin(false);
+          setUser(null);
+        }
+      } catch (error) {
+        console.error('Authentication Error:', error);
+        setIsDealerAdmin(false);
+        setUser(null);
+        Alert.alert(
+          'Unauthorized',
+          'You are not authorized to access this app.',
+        );
+      } finally {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe(); // Clean up the listener
+  }, []);
+
+  if (loading) {
+    // Show a loading spinner or placeholder while checking authentication
+    return null;
+  }
+
   return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
+    <NavigationContainer>
+      <Stack.Navigator
+        screenOptions={{
+          headerShown: false, // Remove title headers from all screens
+        }}>
+        {!user ? (
+          <Stack.Screen
+            name="LoginPage"
+            component={LoginPage}
+            options={{title: 'Login'}}
+          />
+        ) : isDealerAdmin ? (
+          <>
+            <Stack.Screen name="Tab" component={TabScreens} />
+            <Stack.Screen name="CameraPreview" component={CameraPreview} />
+            <Stack.Screen name="CameraScreen" component={CameraScreen} />
+          </>
+        ) : (
+          <Stack.Screen
+            name="unAuthorized"
+            component={unAuthorized}
+            options={{title: 'unAuthorized'}}
+          />
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
   );
-}
-
-function App(): React.JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
-
-  return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
-    </SafeAreaView>
-  );
-}
-
-const styles = StyleSheet.create({
-  sectionContainer: {
-    marginTop: 32,
-    paddingHorizontal: 24,
-  },
-  sectionTitle: {
-    fontSize: 24,
-    fontWeight: '600',
-  },
-  sectionDescription: {
-    marginTop: 8,
-    fontSize: 18,
-    fontWeight: '400',
-  },
-  highlight: {
-    fontWeight: '700',
-  },
-});
+};
 
 export default App;

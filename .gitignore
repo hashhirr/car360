@@ -2,6 +2,15 @@
 #
 .DS_Store
 
+# Android & iOS Builds
+android/.gradle
+android/app/build/
+android/build/
+ios/Pods/
+ios/build/
+ios/.xcworkspace/
+
+
 # Xcode
 #
 build/
